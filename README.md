@@ -2,7 +2,7 @@
 
 <img src="docs/images/mascot.png" alt="OGI Mascot" width="200" />
 
-# OpenGraph Intel (OGI) — Personal Fork
+# OpenGraph Intel (OGI)
 
 > This is a personal fork of [OGI by khashashin](https://github.com/khashashin/ogi).
 > It includes fixes for running without Supabase (anonymous user creation, env var passthrough)
