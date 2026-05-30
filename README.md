@@ -2,7 +2,12 @@
 
 <img src="docs/images/mascot.png" alt="OGI Mascot" width="200" />
 
-# OpenGraph Intel (OGI)
+# OpenGraph Intel (OGI) — Personal Fork
+
+> This is a personal fork of [OGI by khashashin](https://github.com/khashashin/ogi).
+> It includes fixes for running without Supabase (anonymous user creation, env var passthrough)
+> and security patches identified during a code review. The upstream project is where active
+> development happens — go there for the latest features and to contribute.
 
 **Open-source visual link analysis and OSINT framework.**
 **Free, self-hostable, and community-driven.**
