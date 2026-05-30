@@ -57,15 +57,19 @@ async def _ensure_anon_profile() -> None:
     from sqlmodel import select
 
     anon_id = UUID("00000000-0000-0000-0000-000000000000")
+    admin_emails = settings.get_admin_emails()
+    local_email = admin_emails[0] if admin_emails else "local@localhost"
+    local_name = settings.local_user_name or local_email.split("@")[0]
+
     try:
         async for session in get_session():
             result = await session.execute(select(UserProfile).where(UserProfile.id == anon_id))
             if result.scalar_one_or_none() is None:
-                session.add(UserProfile(id=anon_id, email="local@localhost"))
+                session.add(UserProfile(id=anon_id, email=local_email, display_name=local_name))
                 await session.commit()
-                logger.info("Created anonymous user profile for local mode")
+                logger.info("Created local user profile: %s (%s)", local_name, local_email)
             else:
-                logger.info("Anonymous user profile already exists — local mode ready")
+                logger.info("Local user profile already exists — local mode ready")
             break
     except Exception:
         logger.exception("Failed to ensure anonymous user profile")
