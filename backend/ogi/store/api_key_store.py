@@ -1,7 +1,6 @@
 """Encrypted API key storage for per-user transform credentials."""
 from __future__ import annotations
 
-import base64
 from uuid import UUID
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -117,13 +116,13 @@ class ApiKeyStore:
         return f"v1:{token}"
 
     def _decrypt(self, encrypted: str) -> str:
-        # Current format
-        if encrypted.startswith("v1:"):
-            token = encrypted.removeprefix("v1:")
-            try:
-                return self._get_fernet().decrypt(token.encode()).decode()
-            except InvalidToken as exc:
-                raise ValueError("Stored API key cannot be decrypted") from exc
-
-        # Legacy format fallback (base64 plaintext)
-        return base64.b64decode(encrypted.encode()).decode()
+        if not encrypted.startswith("v1:"):
+            raise ValueError(
+                "API key is stored in an unsupported legacy format. "
+                "Please delete and re-enter this API key."
+            )
+        token = encrypted.removeprefix("v1:")
+        try:
+            return self._get_fernet().decrypt(token.encode()).decode()
+        except InvalidToken as exc:
+            raise ValueError("Stored API key cannot be decrypted") from exc
