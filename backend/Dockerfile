@@ -39,6 +39,12 @@ RUN chmod +x /app/entrypoint.sh
 # Default plugins directory (populated via volume mount at runtime)
 RUN mkdir -p plugins
 
+# Run as non-root user
+RUN groupadd -r ogi && useradd -r -g ogi ogi \
+    && chown -R ogi:ogi /app /opt/venv
+
+USER ogi
+
 EXPOSE 8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
