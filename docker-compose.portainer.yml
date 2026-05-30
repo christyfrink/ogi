@@ -1,0 +1,116 @@
+services:
+  ogi-db:
+    image: postgres:16-alpine
+    container_name: ogi-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ogi
+      POSTGRES_USER: ogi
+      POSTGRES_PASSWORD: ${OGI_DB_PASSWORD}
+    volumes:
+      - /opt/ogi/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ogi -d ogi"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ogi-redis:
+    image: redis:7-alpine
+    container_name: ogi-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ogi-backend:
+    image: ghcr.io/khashashin/ogi-backend:latest
+    container_name: ogi-backend
+    restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          - backend
+    ports:
+      - "8090:8000"
+    environment:
+      OGI_DATABASE_URL: ${OGI_DATABASE_URL}
+      OGI_USE_SQLITE: ${OGI_USE_SQLITE}
+      OGI_AUTO_RUN_MIGRATIONS: ${OGI_AUTO_RUN_MIGRATIONS}
+      OGI_RUN_DB_MIGRATIONS: ${OGI_RUN_DB_MIGRATIONS}
+      OGI_REDIS_URL: ${OGI_REDIS_URL}
+      OGI_HOST: ${OGI_HOST}
+      OGI_PORT: ${OGI_PORT}
+      OGI_CORS_ORIGINS: ${OGI_CORS_ORIGINS}
+      OGI_DEPLOYMENT_MODE: ${OGI_DEPLOYMENT_MODE}
+      OGI_TELEMETRY_ENABLED: ${OGI_TELEMETRY_ENABLED}
+      OGI_API_KEY_ENCRYPTION_KEY: ${OGI_API_KEY_ENCRYPTION_KEY}
+      OGI_ADMIN_EMAILS: ${OGI_ADMIN_EMAILS}
+    volumes:
+      - /opt/ogi/plugins:/app/plugins
+      - /opt/ogi/media:/app/media
+    depends_on:
+      ogi-db:
+        condition: service_healthy
+      ogi-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  ogi-worker:
+    image: ghcr.io/khashashin/ogi-backend:latest
+    container_name: ogi-worker
+    restart: unless-stopped
+    command: python -m ogi.worker.run_worker
+    environment:
+      OGI_DATABASE_URL: ${OGI_DATABASE_URL}
+      OGI_USE_SQLITE: ${OGI_USE_SQLITE}
+      OGI_REDIS_URL: ${OGI_REDIS_URL}
+      OGI_API_KEY_ENCRYPTION_KEY: ${OGI_API_KEY_ENCRYPTION_KEY}
+    volumes:
+      - /opt/ogi/plugins:/app/plugins
+    depends_on:
+      ogi-backend:
+        condition: service_healthy
+      ogi-redis:
+        condition: service_healthy
+
+  ogi-agent-worker:
+    image: ghcr.io/khashashin/ogi-backend:latest
+    container_name: ogi-agent-worker
+    restart: unless-stopped
+    command: python -m ogi.agent.run_worker
+    environment:
+      OGI_DATABASE_URL: ${OGI_DATABASE_URL}
+      OGI_USE_SQLITE: ${OGI_USE_SQLITE}
+      OGI_REDIS_URL: ${OGI_REDIS_URL}
+      OGI_API_KEY_ENCRYPTION_KEY: ${OGI_API_KEY_ENCRYPTION_KEY}
+    volumes:
+      - /opt/ogi/plugins:/app/plugins
+    depends_on:
+      ogi-backend:
+        condition: service_healthy
+      ogi-redis:
+        condition: service_healthy
+
+  ogi-frontend:
+    image: ghcr.io/khashashin/ogi-frontend:latest
+    container_name: ogi-frontend
+    restart: unless-stopped
+    ports:
+      - "3030:80"
+    depends_on:
+      ogi-backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
