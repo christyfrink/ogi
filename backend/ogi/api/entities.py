@@ -163,7 +163,7 @@ async def get_entity(
     store: EntityStore = Depends(get_entity_store),
 ) -> Entity:
     entity = await store.get(entity_id)
-    if entity is None:
+    if entity is None or entity.project_id != project_id:
         raise HTTPException(status_code=404, detail="Entity not found")
     return entity
 
@@ -176,6 +176,9 @@ async def update_entity(
     _role: str = Depends(require_project_editor),
     store: EntityStore = Depends(get_entity_store),
 ) -> Entity:
+    entity = await store.get(entity_id)
+    if entity is None or entity.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Entity not found")
     entity = await store.update(entity_id, data)
     if entity is None:
         raise HTTPException(status_code=404, detail="Entity not found")
@@ -191,6 +194,9 @@ async def delete_entity(
     _role: str = Depends(require_project_editor),
     store: EntityStore = Depends(get_entity_store),
 ) -> None:
+    entity = await store.get(entity_id)
+    if entity is None or entity.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Entity not found")
     deleted = await store.delete(entity_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Entity not found")

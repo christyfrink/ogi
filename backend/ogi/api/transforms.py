@@ -196,10 +196,14 @@ async def list_transforms_for_entity(
     entity_id: UUID,
     current_user: UserProfile = Depends(get_current_user),
     entity_store: EntityStore = Depends(get_entity_store),
+    project_store: ProjectStore = Depends(get_project_store),
     preferences: UserPluginPreferenceStore = Depends(get_user_plugin_preference_store),
 ) -> list[TransformInfo]:
     entity = await entity_store.get(entity_id)
     if entity is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    role = await project_store.get_member_role(entity.project_id, current_user.id)
+    if not role:
         raise HTTPException(status_code=404, detail="Entity not found")
     engine = get_transform_engine()
     enabled_by_plugin = await preferences.list_for_user(current_user.id)
