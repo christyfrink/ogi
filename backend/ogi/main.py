@@ -41,6 +41,36 @@ async def _run_startup_migrations() -> None:
     await adopt_and_upgrade()
 
 
+async def _ensure_anon_profile() -> None:
+    """Upsert the anonymous user profile when running without Supabase.
+
+    Without Supabase, all requests are handled by a fixed anonymous user.
+    That user must exist in the profiles table or any write operation (e.g.
+    creating a project) will fail with a NOT NULL constraint violation.
+    """
+    if settings.supabase_url and settings.supabase_anon_key:
+        return  # Supabase handles auth — no anon profile needed
+
+    from uuid import UUID
+    from ogi.db.database import get_session
+    from ogi.models.auth import UserProfile
+    from sqlmodel import select
+
+    anon_id = UUID("00000000-0000-0000-0000-000000000000")
+    try:
+        async for session in get_session():
+            result = await session.execute(select(UserProfile).where(UserProfile.id == anon_id))
+            if result.scalar_one_or_none() is None:
+                session.add(UserProfile(id=anon_id, email="local@localhost"))
+                await session.commit()
+                logger.info("Created anonymous user profile for local mode")
+            else:
+                logger.info("Anonymous user profile already exists — local mode ready")
+            break
+    except Exception:
+        logger.exception("Failed to ensure anonymous user profile")
+
+
 async def _recover_stale_jobs() -> None:
     """Mark any RUNNING/PENDING transform runs as FAILED on startup.
 
@@ -82,6 +112,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Startup DB connection
     await init_db()
+    await _ensure_anon_profile()
 
     registry = EntityRegistry.instance()
     init_entity_registry(registry)
