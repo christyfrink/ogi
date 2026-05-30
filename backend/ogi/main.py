@@ -7,6 +7,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from pathlib import Path
 
 from ogi.config import settings
@@ -23,6 +25,7 @@ from ogi.api.dependencies import (
     init_transform_installer,
     init_redis,
 )
+from ogi.api.limiter import limiter
 from ogi.api.router import api_router
 from ogi.telemetry import telemetry_manager
 
@@ -201,6 +204,9 @@ app = FastAPI(
     version=get_runtime_ogi_version(),
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

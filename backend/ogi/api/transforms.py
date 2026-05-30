@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ogi.config import settings
@@ -31,6 +31,7 @@ from ogi.store.entity_store import EntityStore
 from ogi.store.transform_run_store import TransformRunStore
 from ogi.store.user_plugin_preference_store import UserPluginPreferenceStore
 from ogi.store.transform_settings_store import TransformSettingsStore
+from ogi.api.limiter import limiter
 
 router = APIRouter(prefix="/transforms", tags=["transforms"])
 
@@ -215,9 +216,11 @@ async def list_transforms_for_entity(
 
 
 @router.post("/{name}/run", response_model=TransformRun)
+@limiter.limit("30/minute")
 async def run_transform(
+    request: Request,
     name: str,
-    request: RunTransformRequest,
+    data: RunTransformRequest,
     current_user: UserProfile = Depends(get_current_user),
     entity_store: EntityStore = Depends(get_entity_store),
 ) -> TransformRun:
@@ -227,10 +230,10 @@ async def run_transform(
     )
     prepared = await service.validate_and_prepare(
         transform_name=name,
-        entity_id=request.entity_id,
-        project_id=request.project_id,
+        entity_id=data.entity_id,
+        project_id=data.project_id,
         user_id=current_user.id,
-        config_overrides=request.config.settings,
+        config_overrides=data.config.settings,
         session=entity_store.session,
     )
     return await service.execute_enqueued(prepared=prepared, session=entity_store.session)
