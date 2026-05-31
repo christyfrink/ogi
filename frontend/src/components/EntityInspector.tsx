@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Trash2, Play, Loader2, Plus, X, Copy, Link2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useGraphStore } from "../stores/graphStore";
@@ -36,6 +36,7 @@ export function EntityInspector() {
   const [showAddProp, setShowAddProp] = useState(false);
   const [editingValue, setEditingValue] = useState(false);
   const [valueInput, setValueInput] = useState("");
+  const escapeRef = useRef(false);
 
   // Edge editable state
   const [edgeLabel, setEdgeLabel] = useState("");
@@ -66,6 +67,7 @@ export function EntityInspector() {
     setEditingNotes(false);
     setNotesValue(entity.notes);
     setEditingValue(false);
+    setValueInput("");
   }, [entity]);
 
   useEffect(() => {
@@ -351,6 +353,11 @@ export function EntityInspector() {
               autoFocus
               onChange={(e) => setValueInput(e.target.value)}
               onBlur={() => {
+                if (escapeRef.current) {
+                  escapeRef.current = false;
+                  setEditingValue(false);
+                  return;
+                }
                 setEditingValue(false);
                 const trimmed = valueInput.trim();
                 if (trimmed && trimmed !== entity.value) updateEntity({ value: trimmed });
@@ -359,7 +366,8 @@ export function EntityInspector() {
                 if (e.key === "Enter") {
                   e.currentTarget.blur();
                 } else if (e.key === "Escape") {
-                  setEditingValue(false);
+                  escapeRef.current = true;
+                  e.currentTarget.blur();
                 }
               }}
               className="text-sm font-medium text-text bg-bg border border-border rounded px-1 py-0 flex-1 focus:outline-none focus:border-accent w-full"

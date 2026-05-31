@@ -110,8 +110,17 @@ describe("EntityInspector — entity rename", () => {
     act(() => { valueEl.click(); });
 
     const input = container.querySelector("[data-testid='entity-value-input']") as HTMLInputElement;
+
+    // First type something so onBlur would save if not guarded
+    const nativeInputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
     act(() => {
+      nativeInputSetter?.call(input, "should-not-be-saved.com");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      input.dispatchEvent(new Event("blur", { bubbles: true }));
     });
 
     expect(container.querySelector("[data-testid='entity-value-input']")).toBeNull();
