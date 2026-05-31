@@ -40,8 +40,8 @@ RUN chmod +x /app/entrypoint.sh
 RUN mkdir -p plugins
 
 # Run as non-root user
-RUN groupadd -r ogi && useradd -r -g ogi ogi \
-    && chown -R ogi:ogi /app /opt/venv
+RUN groupadd -r ogi && useradd -r -g ogi -m -d /home/ogi ogi \
+    && chown -R ogi:ogi /app /opt/venv /home/ogi
 
 USER ogi
 
