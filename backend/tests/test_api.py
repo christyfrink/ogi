@@ -370,6 +370,7 @@ async def test_entity_rename_succeeds(client: AsyncClient):
     )
     assert resp.status_code == 200
     assert resp.json()["value"] == "new-name.com"
+    assert resp.json()["id"] == entity_id
 
 
 @pytest.mark.asyncio
@@ -384,10 +385,11 @@ async def test_entity_rename_blocked_when_value_exists(client: AsyncClient):
     )
     entity_id = resp.json()["id"]
 
-    await client.post(
+    resp = await client.post(
         f"/api/v1/projects/{project_id}/entities",
         json={"type": "Domain", "value": "second.com"},
     )
+    assert resp.status_code == 201
 
     # Try to rename first.com to second.com — should be blocked
     resp = await client.patch(
