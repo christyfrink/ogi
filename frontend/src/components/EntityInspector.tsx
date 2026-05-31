@@ -34,6 +34,8 @@ export function EntityInspector() {
   const [newPropKey, setNewPropKey] = useState("");
   const [newPropVal, setNewPropVal] = useState("");
   const [showAddProp, setShowAddProp] = useState(false);
+  const [editingValue, setEditingValue] = useState(false);
+  const [valueInput, setValueInput] = useState("");
 
   // Edge editable state
   const [edgeLabel, setEdgeLabel] = useState("");
@@ -63,6 +65,7 @@ export function EntityInspector() {
     api.transforms.forEntity(entity.id).then(setTransforms).catch(() => setTransforms([]));
     setEditingNotes(false);
     setNotesValue(entity.notes);
+    setEditingValue(false);
   }, [entity]);
 
   useEffect(() => {
@@ -340,17 +343,52 @@ export function EntityInspector() {
           )}
         </div>
         <div className="flex items-center gap-1 group">
-          <p className="text-sm font-medium text-text break-all flex-1">{entity.value}</p>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(entity.value);
-              toast.success("Copied to clipboard");
-            }}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text shrink-0"
-            title="Copy value"
-          >
-            <Copy size={12} />
-          </button>
+          {!isViewer && editingValue ? (
+            <input
+              data-testid="entity-value-input"
+              type="text"
+              value={valueInput}
+              autoFocus
+              onChange={(e) => setValueInput(e.target.value)}
+              onBlur={() => {
+                setEditingValue(false);
+                const trimmed = valueInput.trim();
+                if (trimmed && trimmed !== entity.value) updateEntity({ value: trimmed });
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.currentTarget.blur();
+                } else if (e.key === "Escape") {
+                  setEditingValue(false);
+                }
+              }}
+              className="text-sm font-medium text-text bg-bg border border-border rounded px-1 py-0 flex-1 focus:outline-none focus:border-accent w-full"
+            />
+          ) : (
+            <p
+              data-testid="entity-value"
+              className={`text-sm font-medium text-text break-all flex-1 ${!isViewer ? "cursor-text hover:bg-surface-hover rounded px-1" : ""}`}
+              onClick={() => {
+                if (isViewer) return;
+                setValueInput(entity.value);
+                setEditingValue(true);
+              }}
+            >
+              {entity.value}
+            </p>
+          )}
+          {!editingValue && (
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(entity.value);
+                toast.success("Copied to clipboard");
+              }}
+              className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text shrink-0"
+              title="Copy value"
+            >
+              <Copy size={12} />
+            </button>
+          )}
         </div>
       </div>
 
