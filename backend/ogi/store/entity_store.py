@@ -132,9 +132,15 @@ class EntityStore:
         if not update_data:
             return entity
 
+        new_value = update_data.get("value")
+        if new_value is not None and new_value != entity.value:
+            conflict = await self.find_by_type_and_value(entity.project_id, entity.type, new_value)
+            if conflict is not None and conflict.id != entity_id:
+                raise ValueError("An entity with that value already exists")
+
         for key, value in update_data.items():
             setattr(entity, key, value)
-            
+
         entity.updated_at = datetime.now(timezone.utc)
         self.session.add(entity)
         await self.session.commit()

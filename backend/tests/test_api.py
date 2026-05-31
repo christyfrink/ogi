@@ -353,6 +353,52 @@ async def test_entity_crud(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_entity_rename_succeeds(client: AsyncClient):
+    resp = await client.post("/api/v1/projects", json={"name": "RenameTest"})
+    project_id = resp.json()["id"]
+
+    resp = await client.post(
+        f"/api/v1/projects/{project_id}/entities",
+        json={"type": "Domain", "value": "old-name.com"},
+    )
+    assert resp.status_code == 201
+    entity_id = resp.json()["id"]
+
+    resp = await client.patch(
+        f"/api/v1/projects/{project_id}/entities/{entity_id}",
+        json={"value": "new-name.com"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["value"] == "new-name.com"
+
+
+@pytest.mark.asyncio
+async def test_entity_rename_blocked_when_value_exists(client: AsyncClient):
+    resp = await client.post("/api/v1/projects", json={"name": "RenameConflictTest"})
+    project_id = resp.json()["id"]
+
+    # Create two entities
+    resp = await client.post(
+        f"/api/v1/projects/{project_id}/entities",
+        json={"type": "Domain", "value": "first.com"},
+    )
+    entity_id = resp.json()["id"]
+
+    await client.post(
+        f"/api/v1/projects/{project_id}/entities",
+        json={"type": "Domain", "value": "second.com"},
+    )
+
+    # Try to rename first.com to second.com — should be blocked
+    resp = await client.patch(
+        f"/api/v1/projects/{project_id}/entities/{entity_id}",
+        json={"value": "second.com"},
+    )
+    assert resp.status_code == 409
+    assert "already exists" in resp.json()["error"]["message"]
+
+
+@pytest.mark.asyncio
 async def test_person_image_upload_updates_person_entity(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):

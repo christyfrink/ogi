@@ -179,11 +179,14 @@ async def update_entity(
     entity = await store.get(entity_id)
     if entity is None or entity.project_id != project_id:
         raise HTTPException(status_code=404, detail="Entity not found")
-    entity = await store.update(entity_id, data)
+    try:
+        entity = await store.update(entity_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if entity is None:
         raise HTTPException(status_code=404, detail="Entity not found")
     engine = get_graph_engine(project_id)
-    engine.add_entity(entity)  # update in-memory
+    engine.add_entity(entity)
     return entity
 
 
