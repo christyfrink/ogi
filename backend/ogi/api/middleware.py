@@ -7,36 +7,69 @@ The key is set by the frontend nginx proxy automatically. External clients
 (e.g. MCP servers) must include the header explicitly.
 
 Uses hmac.compare_digest for constant-time comparison to prevent timing attacks.
+
+Implemented as a pure ASGI middleware (not BaseHTTPMiddleware) to avoid the
+known BaseHTTPMiddleware/anyio incompatibility with async SQLAlchemy sessions.
 """
 import hmac
+import json
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.types import ASGIApp
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from ogi.config import settings
 
 _EXEMPT_PATHS = frozenset({"/health"})
-_UNAUTHORIZED = {"detail": "Unauthorized"}
+_UNAUTHORIZED_BODY = json.dumps({"detail": "Unauthorized"}).encode()
 
 
-class ApiKeyMiddleware(BaseHTTPMiddleware):
+class ApiKeyMiddleware:
     def __init__(self, app: ASGIApp) -> None:
-        super().__init__(app)
+        self.app = app
 
-    async def dispatch(self, request: Request, call_next):
-        if request.url.path in _EXEMPT_PATHS:
-            return await call_next(request)
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
 
-        auth = request.headers.get("Authorization", "")
+        path: str = scope.get("path", "")
+        if path in _EXEMPT_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        # When no local_api_key is configured (e.g. Supabase/cloud mode),
+        # skip API key enforcement and defer to the downstream auth layer.
+        if not settings.local_api_key:
+            await self.app(scope, receive, send)
+            return
+
+        # Extract Authorization header from scope headers
+        headers = dict(scope.get("headers", []))
+        auth = headers.get(b"authorization", b"").decode("latin-1")
+
         if not auth.startswith("Bearer "):
-            return JSONResponse(_UNAUTHORIZED, status_code=401)
+            await self._send_401(send)
+            return
 
         token = auth.removeprefix("Bearer ")
-        expected = settings.local_api_key or ""
 
-        if not hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8")):
-            return JSONResponse(_UNAUTHORIZED, status_code=401)
+        if not hmac.compare_digest(token.encode("utf-8"), settings.local_api_key.encode("utf-8")):
+            await self._send_401(send)
+            return
 
-        return await call_next(request)
+        await self.app(scope, receive, send)
+
+    @staticmethod
+    async def _send_401(send: Send) -> None:
+        await send({
+            "type": "http.response.start",
+            "status": 401,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(_UNAUTHORIZED_BODY)).encode()),
+            ],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": _UNAUTHORIZED_BODY,
+            "more_body": False,
+        })

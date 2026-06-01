@@ -19,7 +19,13 @@ os.environ["OGI_SUPABASE_ANON_KEY"] = ""
 os.environ["OGI_SUPABASE_SERVICE_ROLE_KEY"] = ""
 os.environ["OGI_SUPABASE_JWT_SECRET"] = ""
 os.environ["OGI_API_KEY_ENCRYPTION_KEY"] = "k0f97udxEhQ4duzTQESsQNmjUG74U7SMiFd7LrD0WBE="
+os.environ["OGI_LOCAL_API_KEY"] = "test-key-for-integration-tests"
 os.environ["OGI_TELEMETRY_ENABLED"] = "false"
+
+# Patch the settings singleton directly in case it was already instantiated
+# by another test module imported earlier in the pytest session.
+from ogi.config import settings as _settings
+_settings.local_api_key = "test-key-for-integration-tests"
 
 from ogi.main import app
 from ogi.db import database as db_module
@@ -46,10 +52,15 @@ def assert_error_envelope(
     return body
 
 
+_TEST_API_KEY_HEADERS = {"Authorization": "Bearer test-key-for-integration-tests"}
+
+
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=_TEST_API_KEY_HEADERS
+    ) as c:
         # Trigger lifespan startup manually
         async with app.router.lifespan_context(app):
             yield c
@@ -57,7 +68,7 @@ async def client():
 
 @pytest.fixture
 def sync_client():
-    with TestClient(app) as c:
+    with TestClient(app, headers=_TEST_API_KEY_HEADERS) as c:
         yield c
 
 
@@ -1436,8 +1447,11 @@ async def test_project_list_requires_bearer_when_auth_enabled(
 
     monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")
     monkeypatch.setattr(settings, "supabase_anon_key", "anon-key")
-
-    resp = await client.get("/api/v1/projects")
+    # Disable API key enforcement so the request reaches the Supabase auth layer.
+    # In a real Supabase deployment, OGI_LOCAL_API_KEY would not be set.
+    monkeypatch.setattr(settings, "local_api_key", None)
+    # Clear the default Authorization header so the Supabase auth layer sees no token.
+    resp = await client.get("/api/v1/projects", headers={"Authorization": ""})
     assert resp.status_code == 401
     assert "Missing or invalid Authorization header" in resp.json()["error"]["message"]
 

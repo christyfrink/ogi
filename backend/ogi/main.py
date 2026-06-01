@@ -26,6 +26,7 @@ from ogi.api.dependencies import (
     init_redis,
 )
 from ogi.api.limiter import limiter
+from ogi.api.middleware import ApiKeyMiddleware
 from ogi.api.router import api_router
 from ogi.telemetry import telemetry_manager
 
@@ -115,6 +116,15 @@ async def _recover_stale_jobs() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    if not settings.local_api_key:
+        logger.error(
+            "OGI_LOCAL_API_KEY is not set. "
+            "Generate one with: "
+            "python3 -c \"import secrets; print(secrets.token_urlsafe(32))\" "
+            "and set it as OGI_LOCAL_API_KEY in your environment."
+        )
+        raise SystemExit(1)
+
     await _run_startup_migrations()
 
     # Startup DB connection
@@ -208,6 +218,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+app.add_middleware(ApiKeyMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,

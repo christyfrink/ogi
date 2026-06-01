@@ -13,6 +13,7 @@ os.environ["OGI_SUPABASE_ANON_KEY"] = ""
 os.environ["OGI_SUPABASE_SERVICE_ROLE_KEY"] = ""
 os.environ["OGI_SUPABASE_JWT_SECRET"] = ""
 os.environ["OGI_API_KEY_ENCRYPTION_KEY"] = "k0f97udxEhQ4duzTQESsQNmjUG74U7SMiFd7LrD0WBE="
+os.environ["OGI_LOCAL_API_KEY"] = "test-key-for-integration-tests"
 
 from ogi.agent.context import AgentContextBuilder
 from ogi.agent.llm_provider import LLMProvider, LlmDecision, ScriptedLLMProvider, TokenUsage
@@ -29,11 +30,19 @@ from ogi.engine.transform_engine import TransformEngine
 from ogi.main import app
 from ogi.store.audit_log_store import AuditLogStore
 
+# Patch the settings singleton directly in case it was already instantiated
+# by another test module imported earlier in the pytest session.
+settings.local_api_key = "test-key-for-integration-tests"
+
+_TEST_API_KEY_HEADERS = {"Authorization": "Bearer test-key-for-integration-tests"}
+
 
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=_TEST_API_KEY_HEADERS
+    ) as c:
         async with app.router.lifespan_context(app):
             yield c
 
