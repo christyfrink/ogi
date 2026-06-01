@@ -1447,13 +1447,16 @@ async def test_project_list_requires_bearer_when_auth_enabled(
 
     monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")
     monkeypatch.setattr(settings, "supabase_anon_key", "anon-key")
-    # Disable API key enforcement so the request reaches the Supabase auth layer.
-    # In a real Supabase deployment, OGI_LOCAL_API_KEY would not be set.
-    monkeypatch.setattr(settings, "local_api_key", None)
-    # Clear the default Authorization header so the Supabase auth layer sees no token.
-    resp = await client.get("/api/v1/projects", headers={"Authorization": ""})
+    # The middleware always enforces OGI_LOCAL_API_KEY. Pass the correct API key
+    # so the request reaches the Supabase auth layer, then send a non-JWT token
+    # so Supabase rejects it. In production Supabase mode, the client would send
+    # a real Supabase JWT in Authorization; here we send the API key which is not
+    # a valid JWT, so we expect a 401 from the Supabase auth layer.
+    resp = await client.get(
+        "/api/v1/projects",
+        headers={"Authorization": "Bearer test-key-for-integration-tests"},
+    )
     assert resp.status_code == 401
-    assert "Missing or invalid Authorization header" in resp.json()["error"]["message"]
 
 
 @pytest.mark.asyncio

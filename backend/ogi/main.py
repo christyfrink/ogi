@@ -116,9 +116,10 @@ async def _recover_stale_jobs() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    if not settings.local_api_key:
+    if not settings.supabase_url and not settings.supabase_anon_key and not settings.local_api_key:
         logger.error(
             "OGI_LOCAL_API_KEY is not set. "
+            "In no-Supabase mode, this key is required to protect the API. "
             "Generate one with: "
             "python3 -c \"import secrets; print(secrets.token_urlsafe(32))\" "
             "and set it as OGI_LOCAL_API_KEY in your environment."

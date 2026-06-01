@@ -36,12 +36,6 @@ class ApiKeyMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # When no local_api_key is configured (e.g. Supabase/cloud mode),
-        # skip API key enforcement and defer to the downstream auth layer.
-        if not settings.local_api_key:
-            await self.app(scope, receive, send)
-            return
-
         # Extract Authorization header from scope headers
         headers = dict(scope.get("headers", []))
         auth = headers.get(b"authorization", b"").decode("latin-1")
