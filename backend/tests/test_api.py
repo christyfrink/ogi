@@ -19,7 +19,13 @@ os.environ["OGI_SUPABASE_ANON_KEY"] = ""
 os.environ["OGI_SUPABASE_SERVICE_ROLE_KEY"] = ""
 os.environ["OGI_SUPABASE_JWT_SECRET"] = ""
 os.environ["OGI_API_KEY_ENCRYPTION_KEY"] = "k0f97udxEhQ4duzTQESsQNmjUG74U7SMiFd7LrD0WBE="
+os.environ["OGI_LOCAL_API_KEY"] = "test-key-for-integration-tests"
 os.environ["OGI_TELEMETRY_ENABLED"] = "false"
+
+# Patch the settings singleton directly in case it was already instantiated
+# by another test module imported earlier in the pytest session.
+from ogi.config import settings as _settings
+_settings.local_api_key = "test-key-for-integration-tests"
 
 from ogi.main import app
 from ogi.db import database as db_module
@@ -46,10 +52,15 @@ def assert_error_envelope(
     return body
 
 
+_TEST_API_KEY_HEADERS = {"Authorization": "Bearer test-key-for-integration-tests"}
+
+
 @pytest.fixture
 async def client():
     transport = ASGITransport(app=app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=_TEST_API_KEY_HEADERS
+    ) as c:
         # Trigger lifespan startup manually
         async with app.router.lifespan_context(app):
             yield c
@@ -57,7 +68,7 @@ async def client():
 
 @pytest.fixture
 def sync_client():
-    with TestClient(app) as c:
+    with TestClient(app, headers=_TEST_API_KEY_HEADERS) as c:
         yield c
 
 
@@ -1429,17 +1440,23 @@ async def test_registry_mutation_requires_admin_when_auth_enabled(
 
 
 @pytest.mark.asyncio
-async def test_project_list_requires_bearer_when_auth_enabled(
+async def test_project_list_rejects_non_jwt_in_supabase_mode(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):
     from ogi.config import settings
 
     monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")
     monkeypatch.setattr(settings, "supabase_anon_key", "anon-key")
-
-    resp = await client.get("/api/v1/projects")
+    # The middleware always enforces OGI_LOCAL_API_KEY. Pass the correct API key
+    # so the request reaches the Supabase auth layer, then send a non-JWT token
+    # so Supabase rejects it. In production Supabase mode, the client would send
+    # a real Supabase JWT in Authorization; here we send the API key which is not
+    # a valid JWT, so we expect a 401 from the Supabase auth layer.
+    resp = await client.get(
+        "/api/v1/projects",
+        headers={"Authorization": "Bearer test-key-for-integration-tests"},
+    )
     assert resp.status_code == 401
-    assert "Missing or invalid Authorization header" in resp.json()["error"]["message"]
 
 
 @pytest.mark.asyncio

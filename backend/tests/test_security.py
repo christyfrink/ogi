@@ -44,9 +44,12 @@ def test_api_key_store_encrypts_and_decrypts_v1(monkeypatch: pytest.MonkeyPatch)
     assert store._decrypt(encrypted) == "secret-value"
 
 
-def test_api_key_store_reads_legacy_base64(monkeypatch: pytest.MonkeyPatch):
+def test_api_key_store_rejects_legacy_base64(monkeypatch: pytest.MonkeyPatch):
+    # The legacy plaintext base64 fallback was removed as a security fix.
+    # Keys in the old format must be re-entered — silent decryption is not allowed.
     monkeypatch.setattr(settings, "api_key_encryption_key", None)
 
     store = ApiKeyStore(session=None)  # type: ignore[arg-type]
     legacy = base64.b64encode(b"legacy-secret").decode()
-    assert store._decrypt(legacy) == "legacy-secret"
+    with pytest.raises(ValueError, match="unsupported legacy format"):
+        store._decrypt(legacy)
