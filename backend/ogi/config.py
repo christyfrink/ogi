@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     github_token: str | None = os.environ.get("OGI_GITHUB_TOKEN", None)
     api_key_encryption_key: str | None = os.environ.get("OGI_API_KEY_ENCRYPTION_KEY", None)
     admin_emails: str = ""
+    local_api_key: str | None = os.environ.get("OGI_LOCAL_API_KEY", None)  # required in no-Supabase mode
     local_user_name: str = os.environ.get("OGI_LOCAL_USER_NAME", "")
     expose_error_details: bool = False
     media_dir: str = os.environ.get("OGI_MEDIA_DIR", "media")
