@@ -19,7 +19,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from ogi.config import settings
 
 _EXEMPT_PATHS = frozenset({"/health"})
-_UNAUTHORIZED_BODY = json.dumps({"detail": "Unauthorized"}).encode()
+_UNAUTHORIZED_BODY = json.dumps({"error": {"code": "HTTP_401", "message": "Unauthorized"}}).encode()
 
 
 class ApiKeyMiddleware:

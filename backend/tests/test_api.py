@@ -1440,7 +1440,7 @@ async def test_registry_mutation_requires_admin_when_auth_enabled(
 
 
 @pytest.mark.asyncio
-async def test_project_list_requires_bearer_when_auth_enabled(
+async def test_project_list_rejects_non_jwt_in_supabase_mode(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ):
     from ogi.config import settings
